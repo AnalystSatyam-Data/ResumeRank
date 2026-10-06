@@ -4,6 +4,7 @@ ResumeRank - Flask Backend Application
 Main application entry point.
 """
 import os
+import re
 import sys
 
 # Add project root to path
@@ -39,7 +40,7 @@ def create_app():
 
     # Initialize extensions
     CORS(app, resources={r"/api/*": {"origins": [
-        "http://localhost:5173", "http://127.0.0.1:5173"
+        re.compile(r"^http://(localhost|127\.0\.0\.1):\d+$")
     ]}})
     db.init_app(app)
 
@@ -48,6 +49,7 @@ def create_app():
     from backend.routes.resumes import resumes_bp
     from backend.routes.jobs import jobs_bp
     from backend.routes.search_analytics import search_bp, analytics_bp, dsa_bp, settings_bp
+    from backend.routes.optimization import optimization_bp
 
     app.register_blueprint(candidates_bp)
     app.register_blueprint(resumes_bp)
@@ -56,6 +58,7 @@ def create_app():
     app.register_blueprint(analytics_bp)
     app.register_blueprint(dsa_bp)
     app.register_blueprint(settings_bp)
+    app.register_blueprint(optimization_bp)
 
     # Create tables and seed
     with app.app_context():
@@ -127,5 +130,4 @@ def rebuild_indexes():
 app = create_app()
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', '5001'))
-    app.run(debug=os.environ.get('FLASK_DEBUG', '').lower() == 'true', port=port, host='127.0.0.1')
+    app.run(debug=os.environ.get('FLASK_DEBUG', '').lower() == 'true', port=5001, host='127.0.0.1')

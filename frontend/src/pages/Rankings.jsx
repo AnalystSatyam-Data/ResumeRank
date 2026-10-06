@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { jobAPI, candidateAPI } from '../services/api';
+import { jobAPI, candidateAPI, optimizationAPI } from '../services/api';
 import toast from 'react-hot-toast';
-import { HiOutlineChartBar, HiOutlineEye, HiOutlineCheck, HiOutlineX } from 'react-icons/hi';
+import { HiOutlineChartBar, HiOutlineEye, HiOutlineCheck, HiOutlineX, HiOutlineLightningBolt } from 'react-icons/hi';
 
 export default function Rankings() {
   const [jobs, setJobs] = useState([]);
@@ -12,6 +12,50 @@ export default function Rankings() {
   const [loading, setLoading] = useState(false);
   const [topK, setTopK] = useState('');
   const [ranking, setRanking] = useState(false);
+
+  // Optimization States (DSA Unit 3 & 4)
+  const [optAlgorithm, setOptAlgorithm] = useState('knapsack');
+  const [optCapacity, setOptCapacity] = useState(15);
+  const [optMaxCandidates, setOptMaxCandidates] = useState(3);
+  const [optLoading, setOptLoading] = useState(false);
+  const [optResult, setOptResult] = useState(null);
+
+  async function handleRunOptimization() {
+    if (!selectedJob) {
+      toast.error('Please select a job first');
+      return;
+    }
+    const cap = parseInt(optCapacity, 10);
+    if (isNaN(cap) || cap <= 0) {
+      toast.error('Please enter a valid interview capacity (hours > 0)');
+      return;
+    }
+
+    setOptLoading(true);
+    try {
+      toast.loading(`Running ${optAlgorithm === 'knapsack' ? '0/1 Knapsack' : 'Branch & Bound'}...`, { id: 'opt' });
+      let res;
+      if (optAlgorithm === 'knapsack') {
+        res = await optimizationAPI.knapsack({
+          job_id: parseInt(selectedJob, 10),
+          capacity: cap,
+        });
+      } else {
+        const maxC = parseInt(optMaxCandidates, 10) || 3;
+        res = await optimizationAPI.branchBound({
+          job_id: parseInt(selectedJob, 10),
+          capacity: cap,
+          max_candidates: maxC,
+        });
+      }
+      setOptResult(res);
+      toast.success('Optimal candidate cohort selected!', { id: 'opt' });
+    } catch (err) {
+      toast.error(err.message || 'Optimization failed', { id: 'opt' });
+    } finally {
+      setOptLoading(false);
+    }
+  }
 
   useEffect(() => {
     jobAPI.getAll().then(res => {
@@ -151,6 +195,177 @@ export default function Rankings() {
         <div className="empty-state card">
           <h3>Select a job</h3>
           <p>Choose a job from the dropdown to view or generate rankings.</p>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* CANDIDATE SELECTION OPTIMIZER (DSA UNIT 3 & UNIT 4)            */}
+      {/* ============================================================== */}
+      {selectedJob && (
+        <div className="card mt-lg" style={{ marginTop: '2rem', border: '1px solid var(--border)' }}>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className="badge badge-primary" style={{ padding: '3px 8px', fontSize: '0.75rem', fontWeight: 700 }}>DSA UNIT 3 & 4</span>
+                <h3 style={{ margin: 0, fontSize: '1.25rem' }}>Candidate Selection Optimizer</h3>
+              </div>
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                Select optimal candidate subsets under recruiter interview capacity & hiring constraints
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ fontWeight: 600 }}>Optimization Algorithm</label>
+              <select className="form-input" value={optAlgorithm} onChange={e => { setOptAlgorithm(e.target.value); setOptResult(null); }}>
+                <option value="knapsack">Unit 3: 0/1 Knapsack (Dynamic Programming)</option>
+                <option value="branchbound">Unit 4: Branch and Bound (LCBB Multi-Constraint)</option>
+              </select>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ fontWeight: 600 }}>Available Capacity (Interview Hours)</label>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                className="form-input"
+                value={optCapacity}
+                onChange={e => setOptCapacity(e.target.value)}
+                placeholder="e.g. 15"
+              />
+            </div>
+
+            {optAlgorithm === 'branchbound' && (
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ fontWeight: 600 }}>Maximum Candidates (Headcount Quota)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  className="form-input"
+                  value={optMaxCandidates}
+                  onChange={e => setOptMaxCandidates(e.target.value)}
+                  placeholder="e.g. 3"
+                />
+              </div>
+            )}
+
+            <button
+              className="btn btn-primary"
+              onClick={handleRunOptimization}
+              disabled={optLoading}
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', height: 42, marginBottom: 0 }}
+            >
+              <HiOutlineLightningBolt /> {optLoading ? 'Optimizing...' : 'Run Optimization'}
+            </button>
+          </div>
+
+          {optResult && (
+            <div className="animate-fadeIn" style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
+              {/* Summary Cards */}
+              <div className="summary-cards" style={{ marginBottom: '1.5rem' }}>
+                <div className="summary-card">
+                  <div className="summary-card-value" style={{ color: 'var(--accent-primary-hover)' }}>
+                    {optResult.total_score?.toFixed(1) || 0}
+                  </div>
+                  <div className="summary-card-label">Total Score Achieved</div>
+                </div>
+                <div className="summary-card">
+                  <div className="summary-card-value">
+                    {optResult.total_cost} / {optResult.capacity} hrs
+                  </div>
+                  <div className="summary-card-label">Interview Resource Usage</div>
+                </div>
+                <div className="summary-card">
+                  <div className="summary-card-value" style={{ color: 'var(--success)' }}>
+                    {optResult.selected_count} {optResult.max_candidates ? `/ ${optResult.max_candidates}` : ''}
+                  </div>
+                  <div className="summary-card-label">Candidates Selected</div>
+                </div>
+                {optResult.statistics && (
+                  <>
+                    <div className="summary-card">
+                      <div className="summary-card-value">{optResult.statistics.states_explored}</div>
+                      <div className="summary-card-label">States Explored</div>
+                    </div>
+                    <div className="summary-card">
+                      <div className="summary-card-value" style={{ color: 'var(--warning)' }}>
+                        {optResult.statistics.branches_pruned}
+                      </div>
+                      <div className="summary-card-label">Branches Pruned</div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Selected Candidates Table */}
+              <div className="table-container" style={{ marginBottom: '1rem' }}>
+                <div className="table-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h4 style={{ margin: 0 }}>Selected Candidates — {optResult.algorithm}</h4>
+                  <span className="badge badge-success">Optimality Guaranteed</span>
+                </div>
+                <div className="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Selection #</th>
+                        <th>Candidate Name</th>
+                        <th>Match Score</th>
+                        <th>Interview Resource Cost</th>
+                        <th>Efficiency (Score/Cost)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(optResult.selected_candidates || []).map((cand, idx) => (
+                        <tr key={cand.id || idx}>
+                          <td><span className="badge badge-primary">#{idx + 1}</span></td>
+                          <td>
+                            <Link to={`/candidates/${cand.id}`} style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                              {cand.name}
+                            </Link>
+                          </td>
+                          <td>
+                            <div className={`score-circle ${getScoreClass(cand.score)}`} style={{ width: 34, height: 34, fontSize: '0.8125rem' }}>
+                              {(cand.score || 0).toFixed(0)}%
+                            </div>
+                          </td>
+                          <td>
+                            <span style={{ fontWeight: 600 }}>{cand.cost} hours</span>
+                          </td>
+                          <td>
+                            <span className="badge badge-primary">
+                              {((cand.score || 0) / (cand.cost || 1)).toFixed(2)} pts/hr
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Viva-Friendly Algorithmic Justification */}
+              <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--accent-primary-hover)', marginBottom: '0.25rem' }}>
+                  DSA Algorithmic Justification:
+                </div>
+                <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  {optAlgorithm === 'knapsack' ? (
+                    <>
+                      <strong>Unit 3 (0/1 Knapsack):</strong> Using dynamic programming with recurrence{' '}
+                      <code>DP[i][w] = max(DP[i-1][w], DP[i-1][w-cost] + score)</code>, the C optimizer constructed the 2D state table in <strong>O(N &times; W)</strong> time. Backtracking reconstructed this global optimum without exceeding the {optResult.capacity}-hour interview capacity.
+                    </>
+                  ) : (
+                    <>
+                      <strong>Unit 4 (Branch & Bound):</strong> Using Least-Cost / Max-Bound Branch and Bound (LCBB), the C optimizer prioritized states by fractional upper bound relaxation while enforcing both interview capacity (&le; {optResult.capacity} hrs) and headcount quota (&le; {optResult.max_candidates} candidates). It explored {optResult.statistics?.states_explored} states and pruned {optResult.statistics?.branches_pruned} suboptimal subtrees.
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

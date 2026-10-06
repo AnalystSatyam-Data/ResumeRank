@@ -69,6 +69,42 @@ A modern, full-stack **Applicant Tracking & Resume Screening System** engineered
 | **Bipartite Graph** (Adjacency List) | `backend/dsa/graph.py` | Relationship graph between Candidates & Skills; BFS/DFS skill clusters | Traversal: $O(V + E)$<br>Add Edge: $O(1)$ | $O(V + E)$ |
 | **Merge Sort** | `backend/dsa/merge_sort.py` | Stable ranking of candidates by composite score with deterministic tie-breaking | Best/Avg/Worst: $O(N \log N)$ | $O(N)$ |
 | **Max Heap** (Binary Heap) | `backend/dsa/max_heap.py` | Priority Queue for Top-$K$ candidate retrieval without sorting entire pool | Insert: $O(\log N)$<br>Extract Max: $O(\log N)$<br>Top-$K$: $O(K \log N)$ | $O(N)$ |
+| **0/1 Knapsack (Unit 3 DP)** | `backend/dsa_c/knapsack.c` | Candidate selection optimizer maximizing total match score under interview capacity limit | Worst/Avg: $O(N \cdot W)$ | $O(N \cdot W)$ |
+| **Branch and Bound (Unit 4 LCBB)** | `backend/dsa_c/branch_bound.c` | Multi-constraint candidate cohort optimizer under interview hours and headcount quota | Worst: $O(2^N)$<br>Pruned heavily | $O(2^N)$ queue<br>$O(N)$ path |
+
+---
+
+## 🎓 Unit 3 & Unit 4 DSA Integration
+
+As part of the **DSA-II College PBL Progress Report–2**, authentic implementations written in pure C are integrated into ResumeRank for candidate selection optimization.
+
+### Unit 3 — 0/1 Knapsack (Dynamic Programming)
+- **Why it is relevant to ResumeRank**: In talent acquisition, recruiter interviewing capacity is finite (e.g. 15 hours of interviewer time). Each candidate requires evaluation time ($w_i$) and offers an objective match suitability score ($v_i$). Standard ranking only orders candidates; the 0/1 Knapsack optimizer determines the mathematically optimal combination of candidates that maximizes total hiring value without exceeding interview bandwidth.
+- **Input / Output**:
+  - *Input*: Candidate IDs, match scores ($v_i$), derived/configurable interview costs ($w_i$), available interview capacity budget ($W$).
+  - *Output*: Maximum achievable score, total interview hours utilized, and the exact subset of candidates selected.
+- **Complexity**:
+  - Time Complexity: $\mathcal{O}(N \cdot W)$ pseudo-polynomial time.
+  - Space Complexity: $\mathcal{O}(N \cdot W)$ 2D DP matrix enabling exact backtracking reconstruction.
+- **Backend Integration**: Implemented in native C (`backend/dsa_c/knapsack.c`). The Python Flask backend invokes the compiled C executable via subprocess, piping candidate JSON data and receiving structured optimization metrics via `POST /api/optimization/knapsack`.
+
+### Unit 4 — Branch and Bound (LCBB / Best-First Search)
+- **Why it is relevant to ResumeRank**: Real-world hiring campaigns face *multiple simultaneous constraints* — not only interview capacity ($W$), but also a maximum candidate hiring quota ($K$, e.g. at most 3 finalists). Dynamic Programming matrices grow exponentially with multiple constraints. Branch and Bound efficiently searches the decision state space tree while using an admissible bounding function to prune suboptimal branches.
+- **Input / Output**:
+  - *Input*: Candidates pool, interview capacity constraint ($W$), headcount quota limit ($K$).
+  - *Output*: Optimal candidate subset satisfying both constraints, states explored, branches pruned, and initial root bound.
+- **Branching / Bounding / Pruning**:
+  - *Preprocessing*: Candidates are pre-sorted in descending order of efficiency ratio $\text{ratio}_i = v_i / w_i$ (score per interview hour).
+  - *Branching*: 0/1 Decision per candidate (Include / Exclude).
+  - *Bounding*: Upper bound calculated using fractional relaxation combined with top-$K$ headcount limitation: $\text{Bound} = \text{score} + \min(\text{FractionalKnapsackRemaining}, \text{TopRemainingScores})$.
+  - *Pruning*: If $\text{node.bound} \le \text{current\_best\_score}$, the entire subtree is pruned immediately.
+  - *Search Strategy*: Least-Cost / Max-Bound Branch and Bound (LCBB) via a Max-Heap Priority Queue.
+- **Complexity**:
+  - Time Complexity: $\mathcal{O}(2^N)$ worst-case, reduced drastically in practice by pruning.
+  - Space Complexity: $\mathcal{O}(2^N)$ for priority queue, $\mathcal{O}(N)$ for decision path.
+- **Backend Integration**: Implemented in native C (`backend/dsa_c/branch_bound.c`). Integrated with Flask backend via subprocess communication and exposed via `POST /api/optimization/branch-bound`.
+
+---
 
 ---
 
@@ -124,7 +160,7 @@ The frontend API client reads `VITE_API_URL` (default `http://localhost:5001`). 
 PORT=5002 python backend/app.py
 
 # frontend/.env.local
-VITE_API_URL=http://localhost:5001
+VITE_API_URL=http://localhost:5002
 ```
 
 For the default setup, run these in separate terminals:
@@ -146,13 +182,13 @@ python backend/app.py
 
 ## 🧪 Running Automated Tests
 
-Run the test suite covering all 5 custom DSA data structures and all REST API endpoints:
+Run the test suite covering all 5 custom DSA data structures, native C optimizers, and all REST API endpoints:
 ```bash
 pytest -v
 ```
 Output:
 ```
-======================== 22 passed in 1.53s ========================
+======================== 43 passed in 0.30s ========================
 ```
 
 ---
@@ -168,16 +204,25 @@ Resume Indexing and Candidate Ranking Tool/
 │   │   ├── graph.py               # Candidate-skill bipartite graph + BFS/DFS
 │   │   ├── merge_sort.py          # Divide-and-conquer candidate ranker
 │   │   └── max_heap.py            # Array-based binary max heap for Top-K
+│   ├── dsa_c/                     # Authentic Unit 3 & 4 C algorithm implementations
+│   │   ├── knapsack.c             # Unit 3: 0/1 Knapsack Dynamic Programming
+│   │   ├── branch_bound.c         # Unit 4: Branch and Bound (LCBB Priority Queue)
+│   │   ├── build.bat              # Windows compilation script
+│   │   ├── build.sh               # macOS/Linux compilation script
+│   │   ├── Makefile               # Cross-platform Makefile
+│   │   └── README.md              # DSA-II viva reference & complexity documentation
 │   ├── models/
 │   │   └── models.py              # SQLAlchemy ORM (Candidate, Job, Skill, Ranking)
 │   ├── routes/
 │   │   ├── candidates.py          # Candidates CRUD & status endpoints
 │   │   ├── jobs.py                # Jobs CRUD & ranking generation endpoints
 │   │   ├── resumes.py             # Multi-format resume upload & parser
-│   │   └── search_analytics.py    # Search, Analytics & DSA Visualization APIs
+│   │   ├── search_analytics.py    # Search, Analytics & DSA Visualization APIs
+│   │   └── optimization.py        # Unit 3 & 4 candidate selection optimizer endpoints
 │   ├── services/
 │   │   ├── ranking_engine.py      # Weighted multi-factor candidate scoring engine
-│   │   └── resume_parser.py       # Regex & NLP pattern resume extractor
+│   │   ├── resume_parser.py       # Regex & NLP pattern resume extractor
+│   │   └── optimizer_service.py   # Subprocess bridge to native C algorithm executables
 │   ├── database/                  # SQLite database storage
 │   ├── app.py                     # Flask application entry point
 │   └── seed.py                    # Pre-populated realistic candidates & job data
@@ -213,4 +258,3 @@ Resume Indexing and Candidate Ranking Tool/
 ├── run.bat                        # Windows launch batch script
 └── start.ps1                      # Windows PowerShell launch script
 ```
-

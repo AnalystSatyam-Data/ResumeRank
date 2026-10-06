@@ -145,6 +145,18 @@ export const settingsAPI = {
   }),
 };
 
+// ==================== OPTIMIZATION (DSA UNIT 3 & 4) ====================
+export const optimizationAPI = {
+  knapsack: (data) => request('/optimization/knapsack', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  branchBound: (data) => request('/optimization/branch-bound', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+};
+
 // ==================== HEALTH ====================
 export const healthAPI = {
   check: () => request('/health'),

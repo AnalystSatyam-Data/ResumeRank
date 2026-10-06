@@ -41,3 +41,16 @@ Desktop.ini
 
 # Logs
 *.log
+
+# C compiled binaries & build artifacts
+*.exe
+*.o
+*.out
+backend/dsa_c/knapsack
+backend/dsa_c/branch_bound
+!backend/dsa_c/*.c
+!backend/dsa_c/*.h
+!backend/dsa_c/Makefile
+!backend/dsa_c/*.bat
+!backend/dsa_c/*.sh
+!backend/dsa_c/*.md
